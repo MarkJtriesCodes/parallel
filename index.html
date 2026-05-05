@@ -818,18 +818,119 @@
 
   @media (max-width: 900px) {
     .cities-panel { width: 280px; }
-    .lat-card { min-width: 240px; }
+    .lat-card { min-width: 220px; }
     .lat-input { font-size: 44px; width: 140px; }
     .lat-deg { font-size: 32px; }
-    .zoom-ctrl { right: 312px; }
+    .zoom-ctrl { right: 296px; }
     .lat-handle { right: 296px; }
+    .search-card { width: 360px; }
+    .globe-lat-handle { right: 296px; }
   }
+
+  /* ============================================================
+     Mobile layout (≤640px)
+     Top: compact header bar (brand + search)
+     Middle: full-screen map / globe
+     Bottom: cities panel as a fixed bottom sheet
+     ============================================================ */
   @media (max-width: 640px) {
-    .cities-panel { width: calc(100% - 48px); top: auto; bottom: 24px; height: 200px; }
-    .header { right: 24px; }
-    .lat-card { min-width: 0; }
-    .hint, .zoom-ctrl { display: none; }
-    .lat-handle { right: 36px; }
+
+    /* --- Header becomes a solid top bar --- */
+    .header {
+      top: 0; left: 0; right: 0;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 16px 12px;
+      pointer-events: auto;
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
+      box-shadow: 0 2px 8px rgba(26,26,26,0.07);
+      z-index: 600;
+    }
+    /* Brand row — make room for the view toggle sitting top-right */
+    .brand { font-size: 20px; padding-right: 116px; }
+    .brand-tag { display: none; }
+    .brand-mark { width: 11px; height: 11px; }
+    /* Search bar fills full width */
+    .search-card { width: 100%; min-width: 0; height: 48px; border-radius: 8px; }
+    .search-input { font-size: 15px; }
+    /* Lat card + sun card hidden — current lat is visible in cities panel title */
+    .lat-card, .sun-card { display: none; }
+
+    /* --- View toggle: top-right corner over the header --- */
+    .view-toggle {
+      top: 10px;
+      left: auto;
+      right: 16px;
+      transform: none;
+      z-index: 610;
+      padding: 3px;
+    }
+    .vt-btn { padding: 7px 12px; font-size: 10px; letter-spacing: 0.10em; }
+
+    /* --- Cities panel: bottom sheet --- */
+    .cities-panel {
+      top: auto;
+      left: 0; right: 0; bottom: 0;
+      width: 100%;
+      height: 280px;
+      max-height: 55vh;
+      border-radius: 14px 14px 0 0;
+      border: none;
+      border-top: 1px solid var(--rule);
+      box-shadow: 0 -4px 20px rgba(26,26,26,0.10);
+    }
+    /* Drag-pill affordance at top of sheet */
+    .cities-panel::before {
+      content: '';
+      display: block;
+      width: 36px; height: 4px;
+      background: var(--rule);
+      border-radius: 2px;
+      margin: 8px auto -2px;
+    }
+    .cp-header { padding: 8px 16px 10px; }
+    .cp-eyebrow { display: none; }
+    .cp-title { font-size: 20px; margin: 2px 0 6px; }
+    .cp-tolerance { margin-top: 8px; font-size: 11px; }
+    .city-row { padding: 10px 16px; }
+    .city-name { font-size: 20px; }
+    .city-country { font-size: 13px; }
+
+    /* --- Lat drag handle: right edge, clear of cities panel --- */
+    .lat-handle {
+      right: 12px;
+      /* nudge up so it stays visible above cities panel */
+      max-bottom: 296px;
+    }
+    .lat-handle-pill { font-size: 10px; padding: 3px 8px; }
+
+    /* --- Globe lat handle --- */
+    .globe-lat-handle { right: 12px; }
+    .globe-lat-pill { font-size: 10px; padding: 3px 8px; }
+
+    /* --- Zoom control: hidden (use pinch) --- */
+    .zoom-ctrl { display: none; }
+
+    /* --- Hint: hidden --- */
+    .hint { display: none !important; }
+
+    /* --- Globe controls: float above cities panel --- */
+    body.view-globe .globe-controls {
+      bottom: 296px;
+      left: 16px;
+    }
+    .globe-zoom-ctrl button { width: 40px; height: 40px; font-size: 24px; }
+    .ar-btn { padding: 8px 14px; font-size: 10px; }
+
+    /* --- Nudge buttons: bigger tap targets --- */
+    .hint-nudge-btn { padding: 6px 10px; font-size: 14px; }
+
+    /* --- City pins on map: slightly bigger text on mobile --- */
+    .city-pin-label { font-size: 13px; }
+
+    /* --- Search results: full width --- */
+    .search-results { border-radius: 0 0 8px 8px; }
   }
 </style>
 </head>
