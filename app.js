@@ -483,6 +483,10 @@
   let currentView = 'map';
   document.body.classList.add('view-map');
 
+  const spaceAudio = new Audio('space-ambience.aac');
+  spaceAudio.loop = true;
+  spaceAudio.volume = 0.18;
+
   document.querySelectorAll('.vt-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const v = btn.dataset.view;
@@ -493,11 +497,13 @@
       document.body.classList.toggle('view-globe', v === 'globe');
       if (v === 'map') {
         setTimeout(() => map.invalidateSize(), 50);
+        spaceAudio.pause();
       } else if (window.ParallelGlobe) {
         window.ParallelGlobe.onShow();
         // Push current state to globe
         window.ParallelGlobe.setLatitude(currentLat);
         window.ParallelGlobe.setCities(getMatchingCities(currentLat, tolerance));
+        spaceAudio.play().catch(() => {});
       }
     });
   });
