@@ -521,6 +521,59 @@
   // Expose for globe.js lat drag
   window._parallelSetLat = (lat) => updateUI(lat);
 
+  // ---- Continent classification ----
+  const _CC = {
+    'United States':'AM','Canada':'AM','Mexico':'AM','Brazil':'AM','Argentina':'AM',
+    'Chile':'AM','Colombia':'AM','Peru':'AM','Venezuela':'AM','Ecuador':'AM',
+    'Bolivia':'AM','Paraguay':'AM','Uruguay':'AM','Cuba':'AM','Haiti':'AM',
+    'Dominican Republic':'AM','Guatemala':'AM','Honduras':'AM','El Salvador':'AM',
+    'Nicaragua':'AM','Costa Rica':'AM','Panama':'AM','Jamaica':'AM',
+    'Trinidad and Tobago':'AM','Puerto Rico':'AM','Guyana':'AM','Suriname':'AM',
+    'Belize':'AM','Barbados':'AM','Bahamas':'AM',
+    'Germany':'EU','France':'EU','United Kingdom':'EU','Italy':'EU','Spain':'EU',
+    'Ukraine':'EU','Poland':'EU','Romania':'EU','Netherlands':'EU','Belgium':'EU',
+    'Czech Republic':'EU','Greece':'EU','Portugal':'EU','Sweden':'EU','Hungary':'EU',
+    'Belarus':'EU','Austria':'EU','Serbia':'EU','Switzerland':'EU','Bulgaria':'EU',
+    'Denmark':'EU','Finland':'EU','Slovakia':'EU','Norway':'EU','Ireland':'EU',
+    'Croatia':'EU','Moldova':'EU','Bosnia and Herzegovina':'EU','Albania':'EU',
+    'Lithuania':'EU','North Macedonia':'EU','Slovenia':'EU','Latvia':'EU',
+    'Estonia':'EU','Montenegro':'EU','Luxembourg':'EU','Malta':'EU',
+    'Iceland':'EU','Cyprus':'EU','Turkey':'EU','Kosovo':'EU',
+    'Nigeria':'AF','Ethiopia':'AF','Egypt':'AF','South Africa':'AF','Tanzania':'AF',
+    'Kenya':'AF','Algeria':'AF','Sudan':'AF','Uganda':'AF','Morocco':'AF',
+    'Mozambique':'AF','Ghana':'AF','Angola':'AF','Cameroon':'AF','Niger':'AF',
+    'Mali':'AF','Burkina Faso':'AF','Malawi':'AF','Zambia':'AF','Zimbabwe':'AF',
+    'Somalia':'AF','South Sudan':'AF','Guinea':'AF','Benin':'AF','Burundi':'AF',
+    'Tunisia':'AF','Libya':'AF','Rwanda':'AF','Togo':'AF','Sierra Leone':'AF',
+    'Eritrea':'AF','Djibouti':'AF','Gambia':'AF','Liberia':'AF','Gabon':'AF',
+    'Central African Republic':'AF','Mauritania':'AF','Namibia':'AF',
+    'Botswana':'AF','Lesotho':'AF','Eswatini':'AF','Swaziland':'AF',
+    "Côte d'Ivoire":'AF',"Cote d'Ivoire":'AF','Congo':'AF','Chad':'AF','Senegal':'AF',
+    'Democratic Republic of the Congo':'AF','Republic of the Congo':'AF',
+    'Equatorial Guinea':'AF','Madagascar':'AF','Comoros':'AF','Mauritius':'AF',
+    'China':'AS','India':'AS','Japan':'AS','South Korea':'AS','North Korea':'AS',
+    'Indonesia':'AS','Pakistan':'AS','Bangladesh':'AS','Philippines':'AS',
+    'Vietnam':'AS','Thailand':'AS','Myanmar':'AS','Malaysia':'AS',
+    'Afghanistan':'AS','Nepal':'AS','Sri Lanka':'AS','Cambodia':'AS',
+    'Laos':'AS','Singapore':'AS','Taiwan':'AS','Kazakhstan':'AS',
+    'Uzbekistan':'AS','Turkmenistan':'AS','Kyrgyzstan':'AS','Tajikistan':'AS',
+    'Iran':'AS','Iraq':'AS','Saudi Arabia':'AS','Yemen':'AS','Syria':'AS',
+    'Jordan':'AS','Lebanon':'AS','Israel':'AS','Palestine':'AS','Kuwait':'AS',
+    'UAE':'AS','United Arab Emirates':'AS','Oman':'AS','Qatar':'AS',
+    'Bahrain':'AS','Azerbaijan':'AS','Armenia':'AS','Georgia':'AS',
+    'Mongolia':'AS','Hong Kong':'AS','Macau':'AS','Brunei':'AS',
+    'Timor-Leste':'AS','Maldives':'AS','Bhutan':'AS',
+    'Australia':'OC','New Zealand':'OC','Papua New Guinea':'OC','Fiji':'OC',
+    'Solomon Islands':'OC','Vanuatu':'OC','Samoa':'OC','Tonga':'OC',
+  };
+  const _CONTINENT_LABEL = { AM:'Americas', EU:'Europe', AF:'Africa', AS:'Asia', OC:'Oceania' };
+  const _CONTINENT_ORDER = ['AM','EU','AF','AS','OC'];
+
+  function getContinent(country, lon) {
+    if (country === 'Russia') return lon < 60 ? 'EU' : 'AS';
+    return _CC[country] || (lon < -25 ? 'AM' : 'AS');
+  }
+
   function renderCityList(matches) {
     if (matches.length === 0) {
       cityList.innerHTML = `
@@ -530,25 +583,40 @@
         </div>`;
       return;
     }
-    cityList.innerHTML = matches.map(c => `
-      <div class="city-row" data-lat="${c.lat}" data-lon="${c.lon}">
-        <div>
-          <div class="city-name">${escapeHtml(c.name)}</div>
-          <div class="city-country">${escapeHtml(c.country)}</div>
+
+    // Group by continent, sort each group west→east by longitude
+    const groups = {};
+    matches.forEach(c => {
+      const code = getContinent(c.country, c.lon);
+      (groups[code] = groups[code] || []).push(c);
+    });
+    _CONTINENT_ORDER.forEach(code => {
+      if (groups[code]) groups[code].sort((a, b) => a.lon - b.lon);
+    });
+
+    const html = _CONTINENT_ORDER.filter(code => groups[code]).map((code, i) => `
+      <div class="continent-header${i === 0 ? ' continent-header--first' : ''}">${_CONTINENT_LABEL[code]}</div>
+      ${groups[code].map(c => `
+        <div class="city-row" data-lat="${c.lat}" data-lon="${c.lon}">
+          <div>
+            <div class="city-name">${escapeHtml(c.name)}</div>
+            <div class="city-country">${escapeHtml(c.country)}</div>
+          </div>
+          <div class="city-meta">
+            ${c.lat.toFixed(2)}°<br/>
+            <span class="city-delta">Δ ${c.delta.toFixed(2)}°</span>
+          </div>
         </div>
-        <div class="city-meta">
-          ${c.lat.toFixed(2)}°<br/>
-          <span class="city-delta">Δ ${c.delta.toFixed(2)}°</span>
-        </div>
-      </div>
+      `).join('')}
     `).join('');
+
+    cityList.innerHTML = html;
 
     // Click to fly to city
     cityList.querySelectorAll('.city-row').forEach(row => {
       row.addEventListener('click', () => {
         const lat = parseFloat(row.dataset.lat);
         const lon = parseFloat(row.dataset.lon);
-        // Fly there, set latitude to exactly the city's parallel
         map.flyTo([lat, lon], Math.max(map.getZoom(), 5), { duration: 0.9 });
         updateUI(lat);
       });
