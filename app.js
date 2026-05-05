@@ -157,7 +157,10 @@
     return `${abs.toFixed(2)}°${lat >= 0 ? 'N' : 'S'}`;
   }
 
-  // ---- Sunrise / sunset calculation (solar time) ----
+  // ---- Sunrise / sunset calculation ----
+  // We express sunrise/sunset as hours-before/after LOCAL NOON rather than clock
+  // time, because clock time varies by longitude across a parallel — only the
+  // duration and the offset from noon are truly identical everywhere on the line.
   function getSunTimes(lat) {
     const now = new Date();
     const N = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
@@ -167,22 +170,19 @@
     const cosH = -Math.tan(latRad) * Math.tan(declRad);
     if (cosH <= -1) return { kind: 'midnight_sun' };
     if (cosH >= 1)  return { kind: 'polar_night' };
-    const H = Math.acos(cosH) * 180 / Math.PI;
+    const H = Math.acos(cosH) * 180 / Math.PI; // hour angle in degrees
+    const offsetHr = H / 15;                   // hours before/after solar noon
     return {
       kind: 'normal',
-      sunriseHr: 12 - H / 15,
-      sunsetHr: 12 + H / 15,
-      daylightMin: Math.round(H / 15 * 2 * 60),
+      offsetHr,
+      daylightMin: Math.round(offsetHr * 2 * 60),
     };
   }
 
-  function fmtHr(h) {
-    h = ((h % 24) + 24) % 24;
-    const hh = Math.floor(h);
-    const mm = Math.round((h - hh) * 60);
-    const mmStr = mm === 60 ? '00' : String(mm).padStart(2, '0');
-    const hhOut = mm === 60 ? hh + 1 : hh;
-    return `${String(hhOut).padStart(2, '0')}:${mmStr}`;
+  function fmtOffset(hr) {
+    const h = Math.floor(hr);
+    const m = Math.round((hr - h) * 60);
+    return m > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${h}h`;
   }
 
   function updateSunCard(lat) {
@@ -192,13 +192,14 @@
     } else if (s.kind === 'polar_night') {
       sunTimesEl.innerHTML = '<span class="sun-special">Polar night — no sunrise today</span>';
     } else {
-      const h = Math.floor(s.daylightMin / 60);
-      const m = s.daylightMin % 60;
-      const dayStr = m > 0 ? `${h}h ${m}m` : `${h}h`;
+      const totalH = Math.floor(s.daylightMin / 60);
+      const totalM = s.daylightMin % 60;
+      const dayStr = totalM > 0 ? `${totalH}h ${totalM}m` : `${totalH}h`;
+      const off = fmtOffset(s.offsetHr);
       sunTimesEl.innerHTML = `
-        <span class="sun-item"><em class="sun-icon">↑</em> <span>${fmtHr(s.sunriseHr)}</span></span>
-        <span class="sun-sep">–</span>
-        <span class="sun-item"><em class="sun-icon">↓</em> <span>${fmtHr(s.sunsetHr)}</span></span>
+        <span class="sun-item"><em class="sun-icon">↑</em> ${off} before noon</span>
+        <span class="sun-sep">·</span>
+        <span class="sun-item"><em class="sun-icon">↓</em> ${off} after noon</span>
         <span class="sun-duration">${dayStr} daylight</span>`;
     }
   }
