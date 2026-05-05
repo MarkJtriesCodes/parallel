@@ -118,9 +118,18 @@
 
   // ---- Find matching cities ----
   function getMatchingCities(lat, tol) {
-    return window.CITIES
+    const all = window.CITIES
       .map(c => ({ ...c, delta: Math.abs(c.lat - lat) }))
       .filter(c => c.delta <= tol)
+      .sort((a, b) => (b.pop || 0) - (a.pop || 0)); // best cities first by population
+
+    // Cap at 2 per country, then re-sort by delta for display
+    const countryCount = {};
+    return all
+      .filter(c => {
+        countryCount[c.country] = (countryCount[c.country] || 0) + 1;
+        return countryCount[c.country] <= 2;
+      })
       .sort((a, b) => a.delta - b.delta);
   }
 
