@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parallel — Cities on Your Latitude</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+
+<style>
+  :root {
+    --paper: #f5f1e8;
+    --paper-dim: #ece6d6;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-faint: #8a8478;
+    --rule: #d8d2c2;
+    --accent: oklch(0.68 0.19 25);
+    --accent-soft: oklch(0.68 0.19 25 / 0.18);
+    --accent-line: oklch(0.62 0.21 25);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #map, #globe {
+    position: absolute; inset: 0;
+    background: var(--paper);
+    cursor: grab;
+  }
+  #globe { display: none; width: 100%; height: 100%; }
+  body.view-globe #map { display: none; }
+  body.view-globe #globe { display: block !important; }
+  body.view-map #globe { display: none !important; }
+  body.view-globe .leaflet-container { display: none; }
+  body.view-globe .lat-handle,
+  body.view-globe .zoom-ctrl,
+  body.view-globe .hint .map-only { display: none; }
+  body.view-map .globe-controls { display: none !important; }
+  body.view-globe .hint { display: none !important; }
+  #map.dragging-line { cursor: ns-resize !important; }
+  #map.dragging-line .leaflet-grab { cursor: ns-resize !important; }
+
+  /* Tone down Leaflet tiles to feel like paper */
+  .leaflet-tile-pane {
+    filter: saturate(0.55) contrast(0.95) brightness(1.02);
+  }
+  .leaflet-container { background: var(--paper) !important; }
+  .leaflet-control-attribution {
+    background: rgba(245, 241, 232, 0.85) !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 9px !important;
+    color: var(--ink-faint) !important;
+    padding: 2px 6px !important;
+  }
+  .leaflet-control-attribution a { color: var(--ink-soft) !important; }
+  .leaflet-control-zoom { display: none; }
+
+  /* ===== Top-left: title + latitude readout ===== */
+  .header {
+    position: absolute;
+    top: 24px; left: 24px;
+    z-index: 500;
+    display: flex; flex-direction: column;
+    gap: 14px;
+    pointer-events: none;
+  }
+  .brand {
+    display: flex; align-items: baseline; gap: 10px;
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    pointer-events: auto;
+  }
+  .brand-mark {
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    position: relative;
+    transform: translateY(-1px);
+  }
+  .brand-mark::after {
+    content: ''; position: absolute;
+    top: 50%; left: -3px; right: -3px;
+    height: 1.5px; background: var(--accent);
+    transform: translateY(-50%);
+  }
+  .brand-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-faint);
+    margin-left: 4px;
+  }
+
+  /* Search card */
+  .search-card {
+    pointer-events: auto;
+    position: relative;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    display: flex; align-items: center;
+    padding: 0 12px 0 16px;
+    height: 56px;
+    width: 440px;
+    box-shadow: 0 1px 0 rgba(26,26,26,0.04), 0 8px 24px -12px rgba(26,26,26,0.15);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .search-card:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft), 0 8px 24px -12px rgba(26,26,26,0.18);
+  }
+  .search-icon {
+    font-size: 20px;
+    color: var(--ink-faint);
+    margin-right: 12px;
+    transform: translateY(-1px);
+  }
+  .search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    font-size: 17px;
+    color: var(--ink);
+    height: 100%;
+    padding: 0;
+  }
+  .search-input::placeholder { color: var(--ink-faint); }
+  .search-clear {
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    color: var(--ink-faint);
+    cursor: pointer;
+    padding: 0 8px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.12s, color 0.12s;
+  }
+  .search-card.has-text .search-clear { opacity: 1; }
+  .search-clear:hover { color: var(--accent); }
+
+  .search-results {
+    position: absolute;
+    top: calc(100% + 6px); left: 0; right: 0;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    box-shadow: 0 12px 32px -8px rgba(26,26,26,0.18);
+    max-height: 320px;
+    overflow-y: auto;
+    display: none;
+    z-index: 600;
+  }
+  .search-results.open { display: block; }
+  .sr-row {
+    padding: 12px 16px;
+    display: flex; align-items: baseline;
+    gap: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--rule);
+  }
+  .sr-row:last-child { border-bottom: none; }
+  .sr-row:hover, .sr-row.active { background: var(--paper-dim); }
+  .sr-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    flex: 1;
+    line-height: 1.1;
+  }
+  .sr-name mark {
+    background: var(--accent-soft);
+    color: var(--accent-line);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  .sr-country {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+  .sr-lat {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-faint);
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .sr-lat b { color: var(--accent); font-weight: 500; }
+  .sr-special {
+    background: linear-gradient(to right, var(--accent-soft), transparent);
+  }
+  .sr-special .sr-name { color: var(--accent-line); font-style: italic; }
+  .sr-empty {
+    padding: 18px;
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    color: var(--ink-faint);
+    text-align: center;
+  }
+
+  /* View toggle */
+  .view-toggle {
+    position: absolute;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 500;
+    display: flex;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 4px;
+    box-shadow: 0 1px 0 rgba(26,26,26,0.04), 0 8px 24px -12px rgba(26,26,26,0.18);
+  }
+  .vt-btn {
+    border: none; background: transparent;
+    padding: 8px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    cursor: pointer;
+    border-radius: 100px;
+    display: flex; align-items: center; gap: 8px;
+    transition: all 0.18s;
+  }
+  .vt-btn:hover { color: var(--ink); }
+  .vt-btn.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .vt-btn svg { opacity: 0.85; }
+
+  .lat-card {
+    pointer-events: auto;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 14px 18px 16px;
+    min-width: 280px;
+    box-shadow: 0 1px 0 rgba(26,26,26,0.04), 0 8px 24px -12px rgba(26,26,26,0.15);
+  }
+  .lat-card-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-faint);
+    margin-bottom: 6px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .lat-card-label .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  .lat-input-row {
+    display: flex; align-items: baseline; gap: 6px;
+    font-family: 'Instrument Serif', serif;
+  }
+  .lat-input {
+    font-family: 'Instrument Serif', serif;
+    font-size: 56px;
+    line-height: 1;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    width: 180px;
+    padding: 0;
+    outline: none;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .lat-input::-webkit-outer-spin-button,
+  .lat-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .lat-input { -moz-appearance: textfield; }
+  .lat-deg {
+    font-family: 'Instrument Serif', serif;
+    font-size: 40px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .lat-hemi {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-faint);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-left: auto;
+    align-self: center;
+  }
+  .lat-meta {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--rule);
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.05em;
+  }
+  .lat-meta b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ===== Right: city list ===== */
+  .cities-panel {
+    position: absolute;
+    top: 24px; right: 24px; bottom: 24px;
+    width: 400px;
+    z-index: 500;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 1px 0 rgba(26,26,26,0.04), 0 8px 24px -12px rgba(26,26,26,0.15);
+  }
+  .cp-header {
+    padding: 20px 24px 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .cp-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-faint);
+  }
+  .cp-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 32px;
+    margin: 6px 0 0;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  .cp-title em { color: var(--accent); font-style: italic; }
+  .cp-tolerance {
+    margin-top: 14px;
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+  .cp-tolerance input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 2px;
+    background: var(--rule);
+    outline: none;
+  }
+  .cp-tolerance input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--paper);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .cp-tolerance input[type="range"]::-moz-range-thumb {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--paper);
+  }
+  .cp-tolerance b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .cp-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .cp-list::-webkit-scrollbar { width: 6px; }
+  .cp-list::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+
+  .city-row {
+    padding: 14px 24px;
+    display: flex; align-items: baseline;
+    gap: 14px;
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+    transition: background 0.12s, padding 0.12s;
+    position: relative;
+  }
+  .city-row:hover {
+    background: var(--paper-dim);
+    padding-left: 24px;
+  }
+  .city-row::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 50%;
+    width: 0; height: 1px;
+    background: var(--accent);
+    transition: width 0.18s;
+    transform: translateY(-50%);
+  }
+  .city-row:hover::before { width: 12px; }
+
+  .city-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    flex: 1;
+    min-width: 0;
+  }
+  .city-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-faint);
+    text-align: right;
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
+  .city-country {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin-top: 3px;
+  }
+  .city-delta {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .cp-empty {
+    padding: 40px 24px;
+    text-align: center;
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink-faint);
+  }
+  .cp-empty small {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-style: normal;
+    font-size: 10px;
+    margin-top: 8px;
+    letter-spacing: 0.1em;
+  }
+
+  /* ===== Bottom-left hint (map view) ===== */
+  .hint {
+    position: absolute;
+    bottom: 24px; left: 24px;
+    z-index: 500;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 14px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--ink-soft);
+    letter-spacing: 0.05em;
+    display: flex; gap: 20px; align-items: center;
+  }
+  .hint-key {
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .hint-key kbd {
+    font-family: inherit;
+    border: 1px solid var(--rule);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 2px 7px;
+    font-size: 12px;
+    background: var(--paper-dim);
+    color: var(--ink);
+  }
+  .hint-nudge-btn {
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid var(--rule);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 2px 7px;
+    font-size: 12px;
+    background: var(--paper-dim);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+    line-height: 1.2;
+  }
+  .hint-nudge-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+  .hint-icon {
+    width: 18px; height: 2px;
+    background: var(--accent);
+    position: relative;
+  }
+  .hint-icon::after {
+    content: ''; position: absolute;
+    right: -2px; top: -3px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* ===== Sun card ===== */
+  .sun-card {
+    pointer-events: auto;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 10px 18px 12px;
+    min-width: 280px;
+    box-shadow: 0 1px 0 rgba(26,26,26,0.04), 0 8px 24px -12px rgba(26,26,26,0.15);
+  }
+  .sun-card-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ink-faint);
+    margin-bottom: 7px;
+  }
+  .sun-times {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sun-item {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    color: var(--ink-soft);
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .sun-icon {
+    font-size: 12px;
+    color: var(--accent);
+    font-style: normal;
+  }
+  .sun-sep { color: var(--rule); font-size: 13px; }
+  .sun-duration {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-left: 4px;
+  }
+  .sun-special {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 15px;
+    color: var(--ink-faint);
+  }
+
+  /* ===== Globe controls (globe view only) ===== */
+  .globe-controls {
+    position: absolute;
+    bottom: 24px; left: 24px;
+    z-index: 500;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .globe-zoom-ctrl {
+    display: flex; flex-direction: column;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(26,26,26,0.04), 0 4px 12px -6px rgba(26,26,26,0.15);
+  }
+  .globe-zoom-ctrl button {
+    width: 36px; height: 36px;
+    border: none;
+    background: var(--paper);
+    cursor: pointer;
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--ink-soft);
+    transition: background 0.12s;
+  }
+  .globe-zoom-ctrl button:hover { background: var(--paper-dim); color: var(--accent); }
+  .globe-zoom-ctrl button + button { border-top: 1px solid var(--rule); }
+  /* Globe lat drag handle */
+  .globe-lat-handle {
+    position: absolute;
+    right: 440px;
+    z-index: 460;
+    transform: translateY(-50%);
+    pointer-events: auto;
+    cursor: ns-resize;
+    user-select: none;
+    display: none;
+  }
+  body.view-globe .globe-lat-handle { display: block; }
+  .globe-lat-pill {
+    background: var(--accent);
+    color: white;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.05em;
+    box-shadow: 0 4px 12px -2px rgba(0,0,0,0.25);
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .globe-lat-pill::before { content: '⇅'; font-size: 13px; opacity: 0.85; }
+  .ar-btn {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 7px;
+    transition: all 0.18s;
+    box-shadow: 0 1px 0 rgba(26,26,26,0.04), 0 4px 12px -6px rgba(26,26,26,0.15);
+  }
+  .ar-btn:hover { color: var(--ink); border-color: var(--ink-soft); }
+  .ar-btn.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .ar-btn .ar-icon {
+    font-size: 14px;
+    display: inline-block;
+    transition: transform 0.3s;
+  }
+  .ar-btn.active .ar-icon { animation: spin 2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Bottom-right zoom controls ===== */
+  .zoom-ctrl {
+    position: absolute;
+    bottom: 24px;
+    right: 440px;
+    z-index: 500;
+    display: flex; flex-direction: column;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(26,26,26,0.04), 0 8px 24px -12px rgba(26,26,26,0.15);
+  }
+  .zoom-ctrl button {
+    width: 36px; height: 36px;
+    border: none;
+    background: var(--paper);
+    cursor: pointer;
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--ink-soft);
+    transition: background 0.12s;
+  }
+  .zoom-ctrl button:hover { background: var(--paper-dim); color: var(--accent); }
+  .zoom-ctrl button + button { border-top: 1px solid var(--rule); }
+  .zoom-readout {
+    padding: 4px 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-faint);
+    background: var(--paper-dim);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    letter-spacing: 0.05em;
+  }
+
+  /* ===== The latitude line itself ===== */
+  .lat-line {
+    stroke: var(--accent-line) !important;
+    stroke-width: 2 !important;
+    stroke-dasharray: 1, 0 !important;
+    fill: none !important;
+    cursor: ns-resize;
+    pointer-events: stroke;
+  }
+  .lat-line-shadow {
+    stroke: var(--accent-line) !important;
+    stroke-width: 14 !important;
+    stroke-opacity: 0 !important;
+    fill: none !important;
+    cursor: ns-resize;
+    pointer-events: stroke;
+  }
+  .lat-line-glow {
+    stroke: var(--accent) !important;
+    stroke-width: 8 !important;
+    stroke-opacity: 0.18 !important;
+    fill: none !important;
+    pointer-events: none;
+  }
+
+  /* Latitude grab handle on the right edge */
+  .lat-handle {
+    position: absolute;
+    right: 440px;
+    z-index: 450;
+    transform: translate(50%, -50%);
+    pointer-events: auto;
+    cursor: ns-resize;
+    user-select: none;
+  }
+  .lat-handle-pill {
+    background: var(--accent);
+    color: white;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.05em;
+    box-shadow: 0 4px 12px -2px rgba(0,0,0,0.25);
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .lat-handle-pill::before {
+    content: '⇅';
+    font-size: 13px;
+    opacity: 0.85;
+  }
+
+  /* City pin marker on the line */
+  .city-pin {
+    background: transparent !important;
+    border: none !important;
+  }
+  .city-pin-inner {
+    display: flex; align-items: center; gap: 6px;
+    transform: translateY(-50%);
+  }
+  .city-pin-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border: 2px solid var(--paper);
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px var(--accent), 0 2px 6px rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
+  .city-pin-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 14px;
+    background: var(--paper);
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    white-space: nowrap;
+    line-height: 1.2;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  .city-pin-label small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-faint);
+    margin-left: 4px;
+    letter-spacing: 0.05em;
+  }
+  .city-pin.highlighted .city-pin-dot {
+    width: 12px; height: 12px;
+    transition: all 0.15s;
+  }
+  .city-pin.highlighted .city-pin-label {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: white;
+  }
+  .city-pin.highlighted .city-pin-label small { color: rgba(255,255,255,0.7); }
+
+  .globe-city-label {
+    position: absolute;
+    transform: translate(8px, -50%);
+    font-family: 'Instrument Serif', serif;
+    font-size: 14px;
+    color: #1a1a1a;
+    background: rgba(245, 241, 232, 0.92);
+    padding: 1px 7px;
+    border-radius: 3px;
+    border: 1px solid #d8d2c2;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    transition: opacity 0.2s;
+  }
+  .globe-city-label .g-dot {
+    display: inline-block;
+    width: 5px; height: 5px;
+    background: #e85d3a;
+    border-radius: 50%;
+    margin-right: 5px;
+    transform: translateY(-1px);
+  }
+  .globe-city-label.hidden { opacity: 0; }
+
+  @media (max-width: 900px) {
+    .cities-panel { width: 280px; }
+    .lat-card { min-width: 240px; }
+    .lat-input { font-size: 44px; width: 140px; }
+    .lat-deg { font-size: 32px; }
+    .zoom-ctrl { right: 312px; }
+    .lat-handle { right: 296px; }
+  }
+  @media (max-width: 640px) {
+    .cities-panel { width: calc(100% - 48px); top: auto; bottom: 24px; height: 200px; }
+    .header { right: 24px; }
+    .lat-card { min-width: 0; }
+    .hint, .zoom-ctrl { display: none; }
+    .lat-handle { right: 36px; }
+  }
+</style>
+</head>
+<body class="view-map">
+
+<div id="map"></div>
+<canvas id="globe"></canvas>
+
+<!-- Header: title + latitude readout -->
+<div class="header">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <span>Parallel</span>
+    <span class="brand-tag">cities on your latitude</span>
+  </div>
+  <div class="search-card">
+    <div class="search-icon">⌕</div>
+    <input id="searchInput" class="search-input" type="text" placeholder="Type a city or latitude — Boston, 42.34, Tokyo, -33.9…" autocomplete="off" spellcheck="false">
+    <button id="searchClear" class="search-clear" title="Clear">×</button>
+    <div id="searchResults" class="search-results"></div>
+  </div>
+  <div class="lat-card">
+    <div class="lat-card-label">
+      <span>Current latitude</span>
+      <span class="pulse"></span>
+    </div>
+    <div class="lat-input-row">
+      <input id="latInput" class="lat-input" type="number" step="0.01" min="-85" max="85" value="42.36">
+      <span class="lat-deg">°</span>
+      <span id="latHemi" class="lat-hemi">North</span>
+    </div>
+    <div class="lat-meta">
+      <span>D / M / S · <b id="dmsReadout">42° 21′ 36″ N</b></span>
+      <span>Cities found · <b id="cityCount">0</b></span>
+    </div>
+  </div>
+  <div class="sun-card">
+    <div class="sun-card-label">Daylight today · same everywhere on this parallel</div>
+    <div class="sun-times" id="sunTimes">
+      <span class="sun-item"><em class="sun-icon">↑</em> <span id="sunriseTime">—</span></span>
+      <span class="sun-sep">–</span>
+      <span class="sun-item"><em class="sun-icon">↓</em> <span id="sunsetTime">—</span></span>
+      <span class="sun-duration" id="daylightDuration"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Right: cities on this latitude -->
+<aside class="cities-panel">
+  <div class="cp-header">
+    <div class="cp-eyebrow">Same Parallel</div>
+    <h2 class="cp-title">Cities at <em id="latTitle">42.36°N</em></h2>
+    <div class="cp-tolerance">
+      <span>± <b id="tolValue">0.5</b>°</span>
+      <input id="tolSlider" type="range" min="0.1" max="3" step="0.1" value="0.5">
+      <span>tolerance</span>
+    </div>
+  </div>
+  <div id="cityList" class="cp-list"></div>
+</aside>
+
+<!-- Latitude grab handle -->
+<div id="latHandle" class="lat-handle">
+  <div class="lat-handle-pill"><span id="handleLabel">42.36°N</span></div>
+</div>
+
+<!-- Zoom controls -->
+<div class="zoom-ctrl">
+  <button id="zoomIn" title="Zoom in">+</button>
+  <div class="zoom-readout" id="zoomReadout">z 3</div>
+  <button id="zoomOut" title="Zoom out">−</button>
+</div>
+
+<!-- View toggle -->
+<div class="view-toggle">
+  <button class="vt-btn active" data-view="map">
+    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="3" width="13" height="10" rx="0.5"/><path d="M5 3v10M11 3v10M1.5 8h13"/></svg>
+    Map
+  </button>
+  <button class="vt-btn" data-view="globe">
+    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg>
+    Globe
+  </button>
+</div>
+
+<!-- Hint (map view) -->
+<div class="hint">
+  <span class="hint-key"><span class="hint-icon"></span> drag line</span>
+  <span class="hint-key">
+    <button id="nudgeUp" class="hint-nudge-btn" title="Nudge north +0.5°">↑</button>
+    <button id="nudgeDown" class="hint-nudge-btn" title="Nudge south −0.5°">↓</button>
+    nudge
+  </span>
+</div>
+
+<!-- Globe lat drag handle (positioned dynamically by globe.js) -->
+<div id="globeLatHandle" class="globe-lat-handle">
+  <div class="globe-lat-pill"><span id="globeLatLabel">—</span></div>
+</div>
+
+<!-- Globe controls (globe view only) -->
+<div class="globe-controls">
+  <div class="globe-zoom-ctrl">
+    <button id="globeZoomIn" title="Zoom in">+</button>
+    <button id="globeZoomOut" title="Zoom out">−</button>
+  </div>
+  <button id="autoRotateToggle" class="ar-btn active" title="Toggle auto-rotate">
+    <span class="ar-icon">⟳</span> Auto-rotate
+  </button>
+</div>
+
+<script src="cities.js"></script>
+<script src="app.js"></script>
+<script src="globe.js"></script>
+
+</body>
+</html>
