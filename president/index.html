@@ -104,6 +104,34 @@
   .kpi-delta { font-size: 11px; color: var(--muted); }
   .delta.good { color: var(--green); } .delta.bad { color: var(--red); } .delta.neutral { color: var(--muted); }
 
+  /* leaderboard */
+  .lb-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .lb-head h2 { font-size: 17px; margin-bottom: 4px; }
+  .lb-head p { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; max-width: 900px; }
+  .lb-head strong { color: var(--gold); }
+  .lb-scroll { overflow-x: auto; }
+  #lb { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+  #lb th {
+    text-align: right; padding: 7px 10px; color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--line);
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  #lb th:hover { color: var(--accent); }
+  #lb th.sorted { color: var(--accent); }
+  #lb th:first-child, #lb th:nth-child(2) { text-align: left; }
+  #lb td { padding: 8px 10px; border-bottom: 1px solid #1a2440; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #lb td:first-child { color: var(--muted); text-align: left; width: 30px; }
+  #lb td:nth-child(2) { text-align: left; }
+  #lb tr:last-child td { border-bottom: 0; }
+  #lb tbody tr { cursor: pointer; }
+  #lb tbody tr:hover { background: #16223f; }
+  #lb tr.you { background: rgba(242,193,78,.08); cursor: default; }
+  #lb tr.you td:nth-child(2) { color: var(--gold); font-weight: 700; }
+  .lb-school { font-weight: 600; }
+  .lb-blurb { display: block; color: var(--muted); font-weight: 400; font-size: 11px; white-space: normal; max-width: 300px; }
+  #lb .best { color: var(--green); font-weight: 700; }
+  #lb .grade-cell { font-weight: 800; }
+
   #charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
   .chart-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 6px; }
   .chart-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
@@ -163,6 +191,14 @@
     </div>
 
     <div id="kpis"></div>
+
+    <div class="lb-card">
+      <div class="lb-head">
+        <h2>🏆 Schools-of-Thought Leaderboard</h2>
+        <p>Every ideology below runs through the <strong>identical engine</strong> — same equations, same published effect sizes, no favorites. The model doesn't know which school it's scoring. Your current sliders compete as <strong>“You”</strong>. Click a column to re-rank, click a school to try its full platform. Rankings shift with your years-in-office setting — some schools sprint, some schools compound. One honesty note: the <strong>Verdict</strong> column is a composite that weighs income, jobs, prices, poverty, debt, and stability together — that weighting is a choice. If you'd weigh things differently, sort by the raw number you care about; those are just the engine's output.</p>
+      </div>
+      <div class="lb-scroll"><table id="lb"></table></div>
+    </div>
 
     <div class="legend">
       <span><span class="sw" style="background:#60a5fa"></span>Your presidency (central estimate)</span>

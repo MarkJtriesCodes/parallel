@@ -619,6 +619,59 @@ const LEVERS = [
 
 const LEVER_MAP = Object.fromEntries(LEVERS.map(l => [l.id, l]));
 
+/* ============================================================
+   Schools of thought — each is a full platform of lever settings,
+   run through the SAME engine with the SAME effect sizes. The
+   model has no idea which ideology it is scoring.
+   ============================================================ */
+const SCHOOLS = [
+  {
+    id: 'status', name: 'Status Quo', icon: '🏛️',
+    blurb: 'Change nothing. Ride the baseline and let the autopilot fly.',
+    values: {}
+  },
+  {
+    id: 'keynes', name: 'Keynesian', icon: '📈',
+    blurb: 'Manage demand: public investment, a stronger safety net, deficits when the economy needs them.',
+    values: { infra: 1.0, edu: 0.3, rnd: 0.2, ui: 50, ctc: 150, middleTax: -1, topRate: 42 }
+  },
+  {
+    id: 'supply', name: 'Supply-Sider', icon: '💼',
+    blurb: 'Cut taxes and regulation across the board; let private investment do the work.',
+    values: { corpRate: 15, topRate: 28, capGains: 15, middleTax: -1, estate: 0, finDereg: 3, envReg: -3, licensing: 5, tariff: 3, drilling: 4, aiReg: 0 }
+  },
+  {
+    id: 'progressive', name: 'Progressive', icon: '🌹',
+    blurb: 'Tax the top, fund families and the green transition, keep markets but referee them hard.',
+    values: { topRate: 45, corpRate: 28, capGains: 30, minWage: 15, ctc: 300, health: 0.8, edu: 0.5, leave: 12, unions: 3, carbon: 50, zoning: 6, socialHousing: 250, bankCapital: 15, immigration: 50, rnd: 0.3 }
+  },
+  {
+    id: 'demsoc', name: 'Democratic Socialist', icon: '✊',
+    blurb: 'Universal programs, powerful labor, heavily taxed capital, decommodified housing.',
+    values: { topRate: 60, corpRate: 32, capGains: 40, estate: 60, minWage: 20, unions: 5, health: 1.5, edu: 1.0, ctc: 400, ss: 15, ui: 100, leave: 16, rentControl: 40, socialHousing: 500, ftt: 30, bankCapital: 18, usury: 36, carbon: 60, immigration: 30, tariff: 8 }
+  },
+  {
+    id: 'libertarian', name: 'Libertarian', icon: '🗽',
+    blurb: 'Minimal state: slash taxes, spending, and rules everywhere — including the borders and the banks.',
+    values: { topRate: 25, corpRate: 10, capGains: 0, estate: 0, middleTax: -3, ss: -20, health: -1.5, edu: -0.5, ui: -50, defense: -1.5, tariff: 0, licensing: 10, zoning: 10, finDereg: 5, bankCapital: 6, envReg: -5, drilling: 5, immigration: 100, buyAmerica: 0, renewables: 0, chips: 0, aiReg: 0 }
+  },
+  {
+    id: 'populist', name: 'Populist Nationalist', icon: '🦅',
+    blurb: 'Tariff walls, closed borders, cheap money on command, and national industry first.',
+    values: { tariff: 28, deport: 1.2, immigration: -90, fedIndep: 0, ffOverride: 1.5, middleTax: -2, minWage: 12, buyAmerica: 100, drilling: 5, chips: 100, exportControls: 8, finDereg: 2 }
+  },
+  {
+    id: 'hardmoney', name: 'Hard-Money Conservative', icon: '🪙',
+    blurb: 'Price stability and balanced budgets above all; tight money, trimmed spending, no experiments.',
+    values: { inflTarget: 1, qe: -1, ss: -5, health: -0.5, infra: -0.2, ui: -25, bankCapital: 14, tariff: 3, middleTax: 1 }
+  },
+  {
+    id: 'abundance', name: 'Abundance Technocrat', icon: '🚀',
+    blurb: 'Build everything: housing, nuclear, research, and talent — deregulate supply, fund science.',
+    values: { zoning: 9, nuclear: 8, licensing: 8, rnd: 0.5, immigration: 80, tariff: 3, carbon: 30, chips: 80, antitrust: 6, socialHousing: 150, edu: 0.3, bankCapital: 13 }
+  },
+];
+
 /* Preset presidencies */
 const PRESETS = {
   reset: { name: '— Baseline (do nothing)', values: {} },

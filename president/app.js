@@ -313,6 +313,95 @@
     return p.map(s => `<p>${s}</p>`).join('');
   }
 
+  /* ---------- schools-of-thought leaderboard ---------- */
+  const LB_COLS = [
+    { key: 'score',   label: 'Verdict',          better: 'high',   fmt: r => `<span class="grade-cell ${r.score >= 64 ? 'g-good' : r.score >= 43 ? 'g-mid' : 'g-bad'}">${r.grade}</span> <span style="color:var(--muted)">${r.score}</span>` },
+    { key: 'growth',  label: 'GDP growth (avg)', better: 'high',   fmt: r => r.growth.toFixed(1) + '%' },
+    { key: 'unemp',   label: 'Unemployment',     better: 'low',    fmt: r => r.unemp.toFixed(1) + '%' },
+    { key: 'infl',    label: 'Inflation',        better: 'target', fmt: r => r.infl.toFixed(1) + '%' },
+    { key: 'income',  label: 'Real income Δ',    better: 'high',   fmt: r => (r.income >= 0 ? '+$' : '−$') + Math.abs(Math.round(r.income)).toLocaleString() },
+    { key: 'poverty', label: 'Poverty',          better: 'low',    fmt: r => r.poverty.toFixed(1) + '%' },
+    { key: 'debt',    label: 'Debt / GDP',       better: 'low',    fmt: r => r.debt.toFixed(0) + '%' },
+  ];
+  let lbSort = { key: 'score', dir: -1 };
+  let schoolCache = { horizon: -1, rows: null };
+
+  function metricsFrom(sim, base) {
+    const last = a => a[a.length - 1];
+    const g = computeGrade(sim, base);
+    return {
+      score: g.score, grade: g.grade,
+      growth: sim.gdpGrowth.slice(1).reduce((a, b) => a + b, 0) / (sim.gdpGrowth.length - 1),
+      unemp: last(sim.unemployment),
+      infl: last(sim.inflation),
+      income: (last(sim.realIncome) - sim.realIncome[0]) * 1000,
+      poverty: last(sim.poverty),
+      debt: last(sim.debt),
+    };
+  }
+
+  function sortVal(row, col) {
+    return col.better === 'target' ? Math.abs(row.infl - 2) : row[col.key];
+  }
+
+  function renderLeaderboard(youMid, base) {
+    if (schoolCache.horizon !== horizon) {
+      schoolCache.rows = SCHOOLS.map(s => {
+        const sv = {};
+        LEVERS.forEach(l => { sv[l.id] = l.base; });
+        Object.assign(sv, s.values);
+        return { school: s, ...metricsFrom(simulate(sv, horizon, 1), base) };
+      });
+      schoolCache.horizon = horizon;
+    }
+    const changedCount = LEVERS.filter(l => values[l.id] !== l.base).length;
+    const youRow = {
+      school: { id: '__you', name: 'You', icon: '🫵', blurb: changedCount ? `Your current sliders (${changedCount} lever${changedCount > 1 ? 's' : ''} changed).` : 'Your current sliders — identical to Status Quo until you change something.' },
+      ...metricsFrom(youMid, base), you: true,
+    };
+    const rows = schoolCache.rows.concat([youRow]);
+    const col = LB_COLS.find(c => c.key === lbSort.key) || LB_COLS[0];
+    rows.sort((a, b) => (sortVal(a, col) - sortVal(b, col)) * lbSort.dir);
+
+    const best = {};
+    LB_COLS.forEach(c => {
+      const dir = c.better === 'high' ? -1 : 1;
+      best[c.key] = rows.slice().sort((a, b) => (sortVal(a, c) - sortVal(b, c)) * dir)[0];
+    });
+
+    const table = document.getElementById('lb');
+    table.innerHTML = `<thead><tr><th>#</th><th>School</th>${LB_COLS.map(c =>
+      `<th data-key="${c.key}" class="${c.key === lbSort.key ? 'sorted' : ''}" title="Click to sort">${c.label}${c.key === lbSort.key ? (lbSort.dir < 0 ? ' ▼' : ' ▲') : ''}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map((r, i) => `
+        <tr class="${r.you ? 'you' : ''}" data-school="${r.school.id}" ${r.you ? '' : 'title="Click to load this school\'s full platform"'}>
+          <td>${i + 1}</td>
+          <td><span class="lb-school">${r.school.icon} ${r.school.name}</span><span class="lb-blurb">${r.school.blurb}</span></td>
+          ${LB_COLS.map(c => `<td class="${best[c.key] === r ? 'best' : ''}">${c.fmt(r)}</td>`).join('')}
+        </tr>`).join('')}</tbody>`;
+  }
+
+  function initLeaderboard() {
+    const table = document.getElementById('lb');
+    table.addEventListener('click', e => {
+      const th = e.target.closest('th[data-key]');
+      if (th) {
+        const col = LB_COLS.find(c => c.key === th.dataset.key);
+        if (lbSort.key === col.key) lbSort.dir *= -1;
+        else lbSort = { key: col.key, dir: col.better === 'high' ? -1 : 1 };
+        scheduleRun();
+        return;
+      }
+      const tr = e.target.closest('tr[data-school]');
+      if (!tr || tr.dataset.school === '__you') return;
+      const school = SCHOOLS.find(s => s.id === tr.dataset.school);
+      if (!school) return;
+      LEVERS.forEach(l => { values[l.id] = l.base; });
+      Object.assign(values, school.values);
+      document.getElementById('presets').value = 'reset';
+      scheduleRun();
+    });
+  }
+
   /* ---------- run & render ---------- */
   let baseCache = null, baseCacheYears = -1, rafId = null;
 
@@ -330,9 +419,11 @@
       LEVERS.forEach(l => { bv[l.id] = l.base; });
       baseCache = simulate(bv, horizon, 1);
       baseCacheYears = horizon;
+      schoolCache.horizon = -1; // horizon changed: recompute school runs
     }
     const { mid, band } = runAll(values, horizon);
     renderKpis(mid, baseCache);
+    renderLeaderboard(mid, baseCache);
     const g = computeGrade(mid, baseCache);
     const gradeEl = document.getElementById('grade');
     gradeEl.textContent = g.grade;
@@ -405,5 +496,6 @@
   buildSidebar();
   buildCharts();
   buildControls();
+  initLeaderboard();
   scheduleRun();
 })();
