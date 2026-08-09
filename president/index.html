@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Make Me President — U.S. Economy Sandbox</title>
+<style>
+  :root {
+    --bg: #0b1020; --panel: #121a30; --panel2: #0e1526; --line: #22304f;
+    --text: #e5ecf8; --muted: #94a3b8; --accent: #60a5fa; --gold: #f2c14e;
+    --red: #f87171; --green: #4ade80;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+  header {
+    padding: 18px 22px 14px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #101a38 0%, var(--bg) 100%);
+  }
+  header h1 { font-size: 24px; letter-spacing: .5px; }
+  header h1 .flag { margin-right: 8px; }
+  header h1 em { color: var(--gold); font-style: normal; }
+  .tagline { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .disclaimer {
+    margin-top: 10px; font-size: 12px; color: #c9d4e8; background: #16223f;
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+  }
+  .disclaimer strong { color: var(--gold); }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 12px 22px; border-bottom: 1px solid var(--line); background: var(--panel2);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .controls label { color: var(--muted); font-size: 13px; }
+  .yr-btn {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 11px; cursor: pointer; font-size: 14px;
+  }
+  .yr-btn.active { background: var(--accent); border-color: var(--accent); color: #0b1020; font-weight: 700; }
+  select, .btn {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+  }
+  .btn:hover, .yr-btn:hover { border-color: var(--accent); }
+  .spacer { flex: 1; }
+
+  .layout { display: grid; grid-template-columns: 380px 1fr; min-height: calc(100vh - 140px); }
+  @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+
+  /* sidebar */
+  #levers { border-right: 1px solid var(--line); padding: 12px; overflow-y: auto; max-height: calc(100vh - 118px); position: sticky; top: 118px; }
+  @media (max-width: 980px) { #levers { max-height: none; position: static; border-right: 0; } }
+  details.cat { margin-bottom: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  details.cat summary {
+    cursor: pointer; padding: 10px 12px; font-weight: 600; font-size: 14px;
+    list-style: none; user-select: none;
+  }
+  details.cat summary::-webkit-details-marker { display: none; }
+  details.cat[open] summary { border-bottom: 1px solid var(--line); }
+  .count { color: var(--gold); font-weight: 400; font-size: 12px; }
+  .lever { padding: 10px 12px 12px; border-bottom: 1px solid #1a2440; }
+  .lever:last-child { border-bottom: 0; }
+  .lever.changed { background: #16223f; }
+  .lever.disabled { opacity: .38; pointer-events: none; }
+  .lever-head { display: flex; align-items: center; gap: 7px; font-size: 13px; margin-bottom: 6px; }
+  .lever-name { flex: 1; }
+  .lever-val { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lever.changed .lever-val { color: var(--gold); }
+  .info-btn {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0;
+  }
+  .info-btn:hover { color: var(--accent); }
+  .lever-info { font-size: 12px; color: #b6c2d9; margin-top: 8px; background: var(--panel2); border-radius: 8px; padding: 9px 11px; }
+  .lever-info .ev { margin-top: 6px; color: #9fb0ca; }
+  .lever-info strong { color: var(--gold); }
+  .hidden { display: none; }
+  input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  .lever.changed input[type=range] { accent-color: var(--gold); }
+
+  /* main */
+  main { padding: 16px 20px 40px; overflow-x: hidden; }
+  .verdict { display: flex; gap: 16px; align-items: stretch; margin-bottom: 14px; flex-wrap: wrap; }
+  .grade-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 18px; text-align: center; min-width: 130px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .grade { font-size: 44px; font-weight: 800; line-height: 1; }
+  .g-good { color: var(--green); } .g-mid { color: var(--gold); } .g-bad { color: var(--red); }
+  .grade-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  #grade-score { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  #narrative {
+    flex: 1; min-width: 260px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px 18px; font-size: 14px;
+  }
+  #narrative p { margin-bottom: 8px; } #narrative p:last-child { margin-bottom: 0; }
+  #narrative strong { color: var(--gold); }
+
+  #kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-val { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 2px 0; }
+  .kpi-delta { font-size: 11px; color: var(--muted); }
+  .delta.good { color: var(--green); } .delta.bad { color: var(--red); } .delta.neutral { color: var(--muted); }
+
+  #charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+  .chart-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 6px; }
+  .chart-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .chart-unit { color: var(--muted); font-weight: 400; font-size: 11px; }
+  .chart-card canvas { width: 100%; height: 150px; display: block; }
+
+  .legend { display: flex; gap: 18px; color: var(--muted); font-size: 12px; margin: 10px 2px 14px; flex-wrap: wrap; }
+  .legend .sw { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+
+  dialog {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 14px; padding: 26px; max-width: 720px; width: calc(100% - 40px);
+    max-height: 84vh; overflow-y: auto;
+  }
+  dialog::backdrop { background: rgba(4, 8, 18, .7); }
+  dialog h2 { margin-bottom: 12px; color: var(--gold); }
+  dialog h3 { margin: 16px 0 6px; font-size: 15px; color: var(--accent); }
+  dialog p, dialog li { font-size: 13.5px; color: #c9d4e8; margin-bottom: 7px; }
+  dialog ul { padding-left: 20px; }
+  dialog .close { float: right; }
+
+  footer { padding: 18px 22px 30px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="flag">🇺🇸</span>MAKE ME <em>PRESIDENT</em></h1>
+  <div class="tagline">The U.S. economy sandbox — pull 50 real policy levers, watch what the evidence says happens. No ideology, just published research with its uncertainty shown honestly.</div>
+  <div class="disclaimer">
+    <strong>Honesty note:</strong> economics is not physics. Every effect here is the <em>central estimate</em> from empirical research (CBO, Federal Reserve, peer-reviewed studies — tap ⓘ on any lever for citations), and the shaded bands show the range those studies support. Where evidence is thin or contested, the lever says so. This is an educational model, not a prophecy.
+  </div>
+</header>
+
+<div class="controls">
+  <label>Years in office:</label>
+  <span id="years"></span>
+  <label style="margin-left:10px">Preset presidency:</label>
+  <select id="presets"></select>
+  <span class="spacer"></span>
+  <button class="btn" id="share">🔗 Share my presidency</button>
+  <button class="btn" id="reset">↺ Reset all</button>
+  <button class="btn" id="method-btn">📖 Methodology &amp; sources</button>
+</div>
+
+<div class="layout">
+  <aside id="levers"></aside>
+
+  <main>
+    <div class="verdict">
+      <div class="grade-card">
+        <div class="grade-label">Historians' verdict</div>
+        <div class="grade" id="grade">B</div>
+        <div id="grade-score"></div>
+      </div>
+      <div id="narrative"></div>
+    </div>
+
+    <div id="kpis"></div>
+
+    <div class="legend">
+      <span><span class="sw" style="background:#60a5fa"></span>Your presidency (central estimate)</span>
+      <span><span class="sw" style="background:rgba(96,165,250,.35);height:10px"></span>Evidence range (small ↔ large effects)</span>
+      <span><span class="sw" style="background:repeating-linear-gradient(90deg,#94a3b8 0 4px,transparent 4px 8px)"></span>Baseline: do nothing</span>
+    </div>
+
+    <div id="charts"></div>
+  </main>
+</div>
+
+<dialog id="method-modal">
+  <button class="btn close" onclick="this.closest('dialog').close()">✕ Close</button>
+  <h2>How this model works</h2>
+  <p>This is an annual simulation of the US economy built from standard, well-documented macroeconomic relationships — the same building blocks the Congressional Budget Office and Federal Reserve staff use, radically simplified so it runs live in your browser.</p>
+
+  <h3>Starting conditions (approximate 2026 baseline)</h3>
+  <ul>
+    <li>Real GDP growth ≈ 2% (CBO potential-growth estimate) · Unemployment ≈ 4.2% (BLS)</li>
+    <li>CPI inflation ≈ 2.7% (BLS) · Federal funds rate ≈ 4% · 10-yr Treasury ≈ 4.3%</li>
+    <li>Deficit ≈ 6% of GDP; debt held by the public ≈ 100% of GDP (CBO Budget &amp; Economic Outlook)</li>
+    <li>Median existing-home price ≈ $420k (NAR) · 30-yr mortgage ≈ 6.4% (Freddie Mac)</li>
+    <li>Real median household income ≈ $83k, poverty ≈ 11%, Gini ≈ 0.48 (Census)</li>
+    <li>Average effective tariff starts at ~12%, reflecting 2025-26 trade actions (Yale Budget Lab estimates)</li>
+  </ul>
+
+  <h3>Core mechanisms</h3>
+  <ul>
+    <li><strong>Okun's law:</strong> each 1pp of output gap moves unemployment ≈ 0.45pp the other way.</li>
+    <li><strong>Phillips curve:</strong> inflation = persistence + expectations + ~0.3 × output gap + direct price shocks (tariffs, energy, wages). Expectations stay anchored only while the Fed is independent and credible.</li>
+    <li><strong>Taylor rule:</strong> an independent Fed moves rates toward ~neutral + 1.5×(inflation − target) + 0.5×gap. If you seize rate-setting, whatever gap you leave between your rate and that benchmark stimulates or strangles the economy — and un-anchors expectations.</li>
+    <li><strong>Fiscal multipliers:</strong> CBO ranges — roughly 0.4–1.5 depending on the instrument, bigger with slack, smaller when the Fed offsets.</li>
+    <li><strong>Debt dynamics:</strong> debt/GDP grows with (interest − growth) plus the primary deficit; each pp of debt/GDP adds ≈ 2.5bp to long rates (Laubach 2009).</li>
+    <li><strong>Housing:</strong> prices follow income, mortgage rates, and the supply of homes; supply levers act slowly, rate levers act fast.</li>
+    <li><strong>Fragility index:</strong> a 0–100 heuristic for financial-crisis risk (capital rules, deregulation, monetized deficits, debt spirals). Above ~55 it starts costing growth and raising spreads — in reality this risk arrives suddenly, not smoothly.</li>
+  </ul>
+
+  <h3>Where the effect sizes come from</h3>
+  <p>Every lever cites its sources in the ⓘ panel — including CBO and JCT scores, Federal Reserve research, and named peer-reviewed studies (Card &amp; Krueger and Cengiz et al. on minimum wages; Amiti-Redding-Weinstein on tariffs; Diamond-McQuade-Qian on rent control; Chodorow-Reich on corporate taxes; the NAS consensus report on immigration; Fieldhouse &amp; Mertens on R&amp;D; Laubach on deficits and rates; Sargent on monetized deficits, and more). Each effect is entered as a range [small, central, large]; the three runs produce the shaded uncertainty band.</p>
+
+  <h3>What this model honestly cannot do</h3>
+  <ul>
+    <li>Predict recessions' timing — real crises are sudden; the model smooths them into drags and warnings.</li>
+    <li>Capture politics: Congress, courts, and states constrain every one of these levers. You asked to be all-powerful, so here you are.</li>
+    <li>Price things GDP misses: health benefits of clean air, security value of export controls, lives changed by insurance — flagged in the evidence notes where they matter.</li>
+    <li>Settle genuinely open questions (AI's trajectory, exact minimum-wage thresholds) — those levers carry wide bands and say the evidence is thin.</li>
+  </ul>
+  <p>Interactions are linearized: two policies together roughly add. The real economy is nonlinear, adaptive, and run by 340 million people who will surprise you.</p>
+</dialog>
+
+<footer>
+  Make Me President — an educational U.S. economy sandbox. Baselines: BLS, BEA, CBO, Census, Federal Reserve, NAR, Freddie Mac, EIA (approximate 2026 values). Not financial or policy advice; the map is not the territory.
+</footer>
+
+<script src="data.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
